@@ -1,2 +1,4 @@
 testdata/*.gguf
 testdata/tiny-llama/
+testdata/archs/*.gguf
+testdata/archs/.*

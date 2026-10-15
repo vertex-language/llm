@@ -24,6 +24,14 @@ import (
 /// Model is a loaded language model, whatever its family.
 public typealias Model = arch.Model
 
+/// Batch is rows of tokens at positions of sequences: what Model.Decode
+/// takes.
+public typealias Batch = arch.Batch
+
+/// Output is what Decode writes for each wanted row: logits, or hidden
+/// states.
+public typealias Output = arch.Output
+
 /// Family is a text-generation family.
 public typealias Family = arch.Family
 
@@ -134,14 +142,11 @@ public func Generate(_ m: any Model, _ prompt: string, tokens n: int) async thro
         try await neural.Argmax(logits, into: best!, rows: 1, cols: logits.count)
         return int(try await best!.Download()[0])
     }
+    // The prompt is one batch; then a token a step.
     var next = 0
-    var position = 0
-    for i in 0..<ids.count {
-        let logits = try await m.Forward(ids[i], position: position)
-        position += 1
-        if i == ids.count - 1 {
-            next = try await greatest(logits)
-        }
+    var position = ids.count
+    if !ids.isEmpty {
+        next = try await greatest(try await m.Decode(arch.Batch.Prompt(ids), .logits))
     }
     var out: [int] = []
     while out.count < n {
@@ -149,7 +154,7 @@ public func Generate(_ m: any Model, _ prompt: string, tokens n: int) async thro
         if next == m.Tokenizer.Vocab.Eos || out.count == n {
             break
         }
-        next = try await greatest(try await m.Forward(next, position: position))
+        next = try await greatest(try await arch.Forward(m, next, position: position))
         position += 1
     }
     return out
