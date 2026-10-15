@@ -22,6 +22,9 @@ import (
     "llm/glm"
     "llm/ernie"
     "llm/codeshell"
+    "llm/dbrx"
+    "llm/deepseek"
+    "llm/dots"
     "llm/starcoder"
     "llm/stablelm"
     "llm/phi"
@@ -33,6 +36,7 @@ import (
     "llm/internlm"
     "llm/llama"
     "llm/maincoder"
+    "llm/minimax"
     "llm/mistral"
     "llm/olmo"
     "llm/orion"
@@ -80,7 +84,8 @@ let builtin: [Family] = [
     llama.Family, qwen.Family, mistral.Family, granite.Family, olmo.Family, exaone.Family, internlm.Family,
     smollm.Family, seed.Family, arcee.Family, pangu.Family, orion.Family, xverse.Family, maincoder.Family,
     gemma.Family, phi.Family, stablelm.Family, starcoder.Family, cohere.Family, glm.Family, nemotron.Family,
-    plamo.Family, hunyuan.Family, codeshell.Family, ernie.Family,
+    plamo.Family, hunyuan.Family, codeshell.Family, ernie.Family, deepseek.Family, dots.Family,
+    dbrx.Family, minimax.Family,
 ]
 var registered: [Family] = []
 

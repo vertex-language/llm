@@ -19,5 +19,7 @@ public let Family = arch.Standard(name: "mistral", names: Names, spec: { ck in
     s.FFNBias = true
     s.FFNScale = true
     s.AttentionScale = true
+    s.MoE = true
+    s.MoEExpertScales = true
     return s
 })
