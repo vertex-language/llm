@@ -33,7 +33,9 @@ vsc run test-archs            # every family against llama.cpp's random-weight m
 | --- | --- |
 | **`llm`** | The facade: `llm.Load(ref)` fetches a reference (`model/fetch`), opens it as a checkpoint, and loads it with the first family that claims it. `llm.Families()`, `llm.Register(family)` for one not built in, `llm.Inspect(ref)`, and a greedy `llm.Generate` |
 | **`llm/arch`** | The contract families implement: `arch.Model` -- `Decode(batch, output)`, a `Batch` of tokens (or embeddings) at positions of sequences with the rows whose logits or hidden states are wanted, over the model's `Memory` (`nn/cache`) -- and `arch.Family` (a name, `Claims(checkpoint)`, `Load`). `arch.Forward(m, token, position)` is a one-row Decode. Families import this, never `llm` |
-| **`llm/llama`** | The Llama family for generation (`LlamaForCausalLM`, GGUF `llama`: Llama 1 to 3, TinyLlama, SmolLM2 and their fine-tunes) over the `nn/llama` network: a prompt is one batch, then greedy decoding runs on the device. `llama.WriteGGUF` writes one as llama.cpp's converter would |
+| **`llm/llama`** | The Llama family for generation (`LlamaForCausalLM`, GGUF `llama`: Llama 1 to 3, TinyLlama, SmolLM2, Mixtral and their fine-tunes) over the `nn/llama` network: a prompt is one batch, then greedy decoding runs on the device. `llama.WriteGGUF` writes one as llama.cpp's converter would |
+| **`llm/qwen`** | Qwen 1, 2, 2.5 and 3, Qwen2-MoE and Qwen3-MoE, over the `nn/qwen` network |
+| **`llm/<family>`** | A family a `decoder.Spec` describes, one package each: `arcee`, `bailing` (Ling 1 and 2), `codeshell`, `cohere`, `dbrx`, `deepseek` (DeepSeek-MoE), `dots`, `ernie` (4.5 and 4.5 MoE), `exaone` (3, 4, K-EXAONE), `gemma`, `glm` (ChatGLM, GLM-4, GLM-4.5), `granite` (and Granite MoE), `hunyuan` (dense, MoE, HY V3), `internlm`, `maincoder`, `minimax` (M2), `mistral` (Mistral 3), `nemotron`, `olmo` (OLMo, OLMo 2, OLMoE), `orion`, `pangu`, `phi`, `plamo`, `seed`, `smollm`, `stablelm`, `starcoder`, `xverse`. `vsc run test-archs` says which of llama.cpp's architectures match: 50 of 127 |
 
 A program that wants one family imports it and links nothing else:
 

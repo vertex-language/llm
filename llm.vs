@@ -31,6 +31,7 @@ import (
     "llm/gemma"
     "llm/cohere"
     "llm/arcee"
+    "llm/bailing"
     "llm/exaone"
     "llm/granite"
     "llm/internlm"
@@ -85,7 +86,7 @@ let builtin: [Family] = [
     smollm.Family, seed.Family, arcee.Family, pangu.Family, orion.Family, xverse.Family, maincoder.Family,
     gemma.Family, phi.Family, stablelm.Family, starcoder.Family, cohere.Family, glm.Family, nemotron.Family,
     plamo.Family, hunyuan.Family, codeshell.Family, ernie.Family, deepseek.Family, dots.Family,
-    dbrx.Family, minimax.Family,
+    dbrx.Family, minimax.Family, bailing.Family,
 ]
 var registered: [Family] = []
 
