@@ -16,6 +16,17 @@ import (
     "gpu"
     "gpu/neural"
     "llm/arch"
+    "llm/plamo"
+    "llm/nemotron"
+    "llm/hunyuan"
+    "llm/glm"
+    "llm/ernie"
+    "llm/codeshell"
+    "llm/starcoder"
+    "llm/stablelm"
+    "llm/phi"
+    "llm/gemma"
+    "llm/cohere"
     "llm/arcee"
     "llm/exaone"
     "llm/granite"
@@ -68,6 +79,8 @@ public enum LoadError: Error, CustomStringConvertible {
 let builtin: [Family] = [
     llama.Family, qwen.Family, mistral.Family, granite.Family, olmo.Family, exaone.Family, internlm.Family,
     smollm.Family, seed.Family, arcee.Family, pangu.Family, orion.Family, xverse.Family, maincoder.Family,
+    gemma.Family, phi.Family, stablelm.Family, starcoder.Family, cohere.Family, glm.Family, nemotron.Family,
+    plamo.Family, hunyuan.Family, codeshell.Family, ernie.Family,
 ]
 var registered: [Family] = []
 

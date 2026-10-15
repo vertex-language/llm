@@ -1,7 +1,7 @@
 // Every family against llama.cpp, architecture by architecture:
 // test-llama-archs's random-weight models (testdata/archs, made by
 // testdata/oracle/gen-archs.sh) through whichever family claims each, on
-// every device, compared with llama.cpp's logits for the same 16 tokens
+// every device, compared with llama.cpp's logits for the same 48 tokens
 // by normalized mean squared error -- test-llama-archs's own measure, and
 // its bound of 1e-4.
 //

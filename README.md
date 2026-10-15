@@ -52,7 +52,7 @@ logits and the greedy continuation (`cmd/test-llama/golden`).
 `testdata/oracle/gen-archs.sh` runs llama.cpp's `test-llama-archs` to write
 a random-weight model of every architecture it can save (127 of them, every
 optional tensor its graph reads set), and `arch_logits.cpp` writes
-llama.cpp's logits for 16 tokens through each: `testdata/archs`.
+llama.cpp's logits for 48 tokens through each: `testdata/archs`.
 
 | Program | Checks |
 | --- | --- |

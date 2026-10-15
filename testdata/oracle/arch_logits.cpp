@@ -6,7 +6,7 @@
 // compares (gen-archs.sh makes the models and runs this on each).
 //
 //   c++ -std=c++17 -I$LLAMA/include -I$LLAMA/ggml/include arch_logits.cpp -L$BUILD/bin -lllama -o arch_logits
-//   ./arch_logits model.gguf 16 > model.logits
+//   ./arch_logits model.gguf 48 > model.logits
 //
 // The file: "VXLG", then int32 n_tokens and n_vocab, the tokens as int32,
 // then n_tokens rows of n_vocab float32 logits; little-endian.
