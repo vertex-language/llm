@@ -61,14 +61,23 @@ repository's README for where they come from, and `vsc run convert` for
 
 ## Speed
 
-`vsc run bench` loads `stories15M-q4_0` and generates 100 tokens on each
-device; `vsc run profile` splits a token's time; `vsc run ops` times each
-operation alone. On an Apple M-series Mac (2026-09-25):
+`vsc run bench` loads `stories15M-q4_0` (or `MODEL=`) and generates 100
+tokens on each device; `vsc run profile` splits a token's time; `vsc run ops`
+times each operation alone; `VERTEX_GPU_PROFILE=3` before any of them says
+each kernel's device time as it runs in the model. On an Apple M1 (MacBook
+Air, 7-core GPU), 2026-10-14, llama.cpp's `llama-simple` run alternately:
 
-| | Vertex | llama.cpp (same machine) |
+| Metal, tokens/s | Vertex | llama.cpp (same machine) |
 | --- | --- | --- |
-| Metal | ~320 tokens/s | 615 tokens/s |
-| CPU | ~70 tokens/s | 3,433 tokens/s |
+| stories15M Q4_0 | ~1,200 | ~585 |
+| stories110M Q4_K_M | ~330 | ~320 |
+
+`Generate` runs the greedy loop on the device: each token's greatest logit
+is chosen there and read by the next step's embedding lookup, so the host
+never waits to learn a token (llama.cpp samples each token on the host).
+Driving `Forward` token by token instead, reading each token back, is ~860
+and ~300 tokens/s. The CPU device is ~65 tokens/s on stories15M, against
+llama.cpp's 3,433 (as measured 2026-09-25).
 
 ---
 

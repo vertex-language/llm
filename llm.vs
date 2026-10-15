@@ -14,6 +14,7 @@ package llm
 
 import (
     "gpu"
+    "gpu/neural"
     "llm/arch"
     "llm/llama"
     "model"
@@ -116,27 +117,39 @@ public func Inspect(_ ref: string) async throws -> Info {
 /// the end-of-sequence token, and is the tokens it made. (llm/generate,
 /// with sampling and streaming, replaces this.)
 public func Generate(_ m: any Model, _ prompt: string, tokens n: int) async throws -> [int] {
+    if let g = m as? any arch.GreedyModel {
+        return try await g.Generate(prompt, tokens: n)
+    }
     let ids = m.Tokenizer.Encode(prompt, addSpecial: true)
     if ids.count + n > m.Context {
         throw LoadError.unsupported("\(ids.count) prompt tokens and \(n) more are past the context of \(m.Context)")
     }
-    var logits: [float32] = []
+    // The next token is the greatest logit, found on the device: one int
+    // read back a token, and none for the prompt's tokens but the last.
+    var best: gpu.Buffer<int32>? = nil
+    func greatest(_ logits: gpu.Buffer<float32>) async throws -> int {
+        // A float's bytes viewed as an int: CreateBuffer(of: int32.self)
+        // specialized here fails the compiler's SIL verifier.
+        if best == nil { best = try logits.Device.CreateBuffer(of: float32.self, count: 1).View(as: int32.self) }
+        try await neural.Argmax(logits, into: best!, rows: 1, cols: logits.count)
+        return int(try await best!.Download()[0])
+    }
+    var next = 0
     var position = 0
-    for id in ids {
-        logits = try await m.Forward(id, position: position).Download()
+    for i in 0..<ids.count {
+        let logits = try await m.Forward(ids[i], position: position)
         position += 1
+        if i == ids.count - 1 {
+            next = try await greatest(logits)
+        }
     }
     var out: [int] = []
     while out.count < n {
-        var next = 0
-        for i in 1..<max(1, logits.count) where logits[i] > logits[next] {
-            next = i
-        }
         out.append(next)
         if next == m.Tokenizer.Vocab.Eos || out.count == n {
             break
         }
-        logits = try await m.Forward(next, position: position).Download()
+        next = try await greatest(try await m.Forward(next, position: position))
         position += 1
     }
     return out

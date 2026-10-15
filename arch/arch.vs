@@ -27,6 +27,15 @@ public protocol Model: AnyObject {
     func Forward(_ token: int, position: int) async throws -> gpu.Buffer<float32>
 }
 
+/// GreedyModel is a Model that runs greedy decoding itself -- on its
+/// device, choosing each next token there, where the generic loop reads
+/// every token back -- and that llm.Generate leaves it to.
+public protocol GreedyModel: Model {
+    /// Generate continues prompt greedily for at most n tokens, stopping at
+    /// the end-of-sequence token, and is the tokens it made.
+    func Generate(_ prompt: string, tokens n: int) async throws -> [int]
+}
+
 /// Family is a model family: its name, whether it claims a checkpoint,
 /// and how it loads one.
 public struct Family {

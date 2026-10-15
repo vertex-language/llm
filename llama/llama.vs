@@ -130,7 +130,7 @@ public final class Block {
 }
 
 /// Model is a llama on a device, with a KV cache for one sequence.
-public final class Model: arch.Model {
+public final class Model: arch.GreedyModel {
     public let Config: Config
     public let Tokenizer: tokenizer.Tokenizer
     public let Device: gpu.Device
@@ -142,6 +142,9 @@ public final class Model: arch.Model {
     let _x: gpu.Buffer<float32>
     let _h: gpu.Buffer<float32>
     let _logits: gpu.Buffer<float32>
+    // The sequence's tokens, as the device writes and reads them when it
+    // runs the decoding loop itself (Generate).
+    let _tokens: gpu.Buffer<int32>
 
     init(_ config: Config, _ tok: tokenizer.Tokenizer, _ d: gpu.Device, _ embed: nn.Embedding, _ blocks: [Block],
          _ norm: nn.RMSNorm, _ output: nn.Linear) throws {
@@ -160,6 +163,9 @@ public final class Model: arch.Model {
         self._x = try d.CreateBuffer(of: float32.self, count: config.Dim)
         self._h = try d.CreateBuffer(of: float32.self, count: config.Dim)
         self._logits = try d.CreateBuffer(of: float32.self, count: output.Out)
+        // A float's bytes viewed as ints: CreateBuffer(of: int32.self)
+        // specialized here fails the compiler's SIL verifier.
+        self._tokens = try d.CreateBuffer(of: float32.self, count: config.Context + 1).View(as: int32.self)
     }
 
     /// Context is how many positions the cache holds.
@@ -203,6 +209,13 @@ public final class Model: arch.Model {
             blocks.append(Block(attnNorm: try await norm(p + "input_layernorm.weight"), attention: attention,
                                 ffnNorm: try await norm(p + "post_attention_layernorm.weight"), mlp: mlp))
         }
+        if c.HeadDim % 2 == 0 {
+            // One table of the rotation's cosines and sines for every layer.
+            let table = try await neural.RopeTable.Make(on: d, dim: c.HeadDim, positions: c.Context, base: c.RopeBase)
+            for b in blocks {
+                b.Attention.Table = table
+            }
+        }
         let final = try await norm("model.norm.weight")
         let output = c.TiedEmbeddings ? try nn.Linear(embed.Weight) : try nn.Linear(try await weight("lm_head.weight"))
         return try Model(c, try ck.Tokenizer(), d, embed, blocks, final, output)
@@ -212,6 +225,12 @@ public final class Model: arch.Model {
     /// cache, and is its logits over the vocabulary.
     public func Forward(_ token: int, position: int) async throws -> gpu.Buffer<float32> {
         try await Embed.Lookup(token, into: _x)
+        return try await _layers(position)
+    }
+
+    // _layers runs what _x holds, the token at position, through the
+    // blocks and the head, and is the logits.
+    func _layers(_ position: int) async throws -> gpu.Buffer<float32> {
         for i in 0..<Blocks.count {
             let b = Blocks[i]
             // Each sublayer's output is added to the residual stream by the
@@ -228,28 +247,59 @@ public final class Model: arch.Model {
 
     /// Generate continues prompt greedily for at most n tokens, stopping at
     /// the end-of-sequence token, and is the tokens it made.
+    ///
+    /// The device runs the loop: each token's greatest logit is written
+    /// where the next step's embedding lookup reads it, so the host queues
+    /// step after step without waiting to learn a token, and reads the
+    /// tokens back a few steps at a time -- the end-of-sequence token is
+    /// found up to that many steps late, and what was made past it dropped.
     public func Generate(_ prompt: string, tokens n: int) async throws -> [int] {
         let ids = Tokenizer.Encode(prompt, addSpecial: true)
         if ids.count + n > Config.Context {
             throw LoadError.unsupported("\(ids.count) prompt tokens and \(n) more are past the context of \(Config.Context)")
         }
-        var logits: [float32] = []
-        var position = 0
-        for id in ids {
-            logits = try await Forward(id, position: position).Download()
-            position += 1
+        if n == 0 {
+            return []
         }
-        var out: [int] = []
-        while out.count < n {
-            let next = Argmax(logits)
-            out.append(next)
-            if next == Tokenizer.Vocab.Eos || out.count == n {
-                break
+        // _tokens holds the prompt and then the tokens made, the first of
+        // them at `first`. With no prompt, the first token is 0.
+        let first = ids.count
+        var start: [int32] = ids.map { int32($0) }
+        if first == 0 {
+            start = [0]
+        }
+        try await _tokens.Slice(from: 0, count: start.count).Upload(start)
+        for i in 0..<first {
+            try await Embed.Lookup(tokens: _tokens, at: i, into: _x)
+            let logits = try await _layers(i)
+            if i == first - 1 {
+                try await neural.Argmax(logits, into: _tokens.Slice(from: first, count: 1), rows: 1, cols: logits.count)
             }
-            logits = try await Forward(next, position: position).Download()
-            position += 1
         }
-        return out
+        var made = 1
+        var read = 0
+        var out: [int] = []
+        while true {
+            var steps = 0
+            while made < n && steps < 8 {
+                let at = first + made - 1
+                try await Embed.Lookup(tokens: _tokens, at: at, into: _x)
+                let logits = try await _layers(at)
+                try await neural.Argmax(logits, into: _tokens.Slice(from: at + 1, count: 1), rows: 1, cols: logits.count)
+                made += 1
+                steps += 1
+            }
+            for t in try await _tokens.Slice(from: first + read, count: made - read).Download() {
+                out.append(int(t))
+                if int(t) == Tokenizer.Vocab.Eos {
+                    return out
+                }
+            }
+            read = made
+            if made == n {
+                return out
+            }
+        }
     }
 }
 
