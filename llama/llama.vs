@@ -15,6 +15,7 @@ import (
     "llm/arch"
     "model"
     "nn/cache"
+    "nn/decoder"
     "text/tokenizer"
     net "nn/llama"
 )
@@ -37,26 +38,28 @@ public let Family = arch.Family(name: "llama", names: Names, load: { ck, d in
 /// Model is a llama on a device, with a memory of one sequence (more with
 /// Load's sequences).
 public final class Model: arch.GreedyModel {
-    public let Network: net.Network
+    public let Config: net.Config
+    public let Network: decoder.Network
     public let Tokenizer: tokenizer.Tokenizer
     public let KV: cache.KV
     // The sequence's tokens, as the device writes and reads them when it
     // runs the decoding loop itself (Generate).
     let _tokens: gpu.Buffer<int32>
 
-    init(_ network: net.Network, _ tok: tokenizer.Tokenizer, sequences: int) throws {
+    init(_ config: net.Config, _ network: decoder.Network, _ tok: tokenizer.Tokenizer, sequences: int) throws {
+        self.Config = config
         self.Network = network
         self.Tokenizer = tok
         self.KV = network.Memory(sequences: sequences)
-        self._tokens = try network.Tokens(count: network.Config.Context + 1)
+        self._tokens = try network.Tokens(count: network.Context + 1)
     }
 
-    public var Config: Config { return Network.Config }
+
     public var Device: gpu.Device { return Network.Device }
     public var Memory: cache.Memory { return KV }
 
     /// Context is how many positions a sequence holds.
-    public var Context: int { return Network.Config.Context }
+    public var Context: int { return Network.Context }
 
     /// Load reads the llama at path -- a GGUF file, or a Hugging Face
     /// snapshot directory -- onto device d.
@@ -67,8 +70,8 @@ public final class Model: arch.GreedyModel {
     /// Load reads a llama checkpoint onto device d, with a memory of
     /// sequences sequences.
     public static func Load(_ ck: model.Checkpoint, on d: gpu.Device, sequences: int = 1) async throws -> Model {
-        let network = try await net.Network.Load(ck, on: d)
-        return try Model(network, try ck.Tokenizer(), sequences: sequences)
+        let network = try await net.Load(ck, on: d)
+        return try Model(try net.Config.Read(ck), network, try ck.Tokenizer(), sequences: sequences)
     }
 
     /// Decode runs a batch through the model (llm/arch's Model.Decode).
@@ -84,9 +87,9 @@ public final class Model: arch.GreedyModel {
         case .hidden: hidden = true
         }
         if let e = b.Embeddings {
-            return try await Network.Forward(.embeddings(e), runs: runs, wanted: wanted, hidden: hidden, memory: KV)
+            return try await Network.Forward(decoder.Input.embeddings(e), runs: runs, wanted: wanted, hidden: hidden, memory: KV)
         }
-        return try await Network.Forward(.tokens(b.Tokens), runs: runs, wanted: wanted, hidden: hidden, memory: KV)
+        return try await Network.Forward(decoder.Input.tokens(b.Tokens), runs: runs, wanted: wanted, hidden: hidden, memory: KV)
     }
 
     /// Forward runs token at position of sequence 0 through the model and

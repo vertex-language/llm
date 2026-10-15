@@ -104,8 +104,7 @@ for name in names {
         }
         let e2 = nmse(split, want)
         // Two sequences in one batch: the first 8 of sequence 1 and all of
-        // sequence 0, after the memory is cleared.
-        m.Memory.Clear()
+        // sequence 0 (each from position 0, which drops what it held).
         var e3: float64 = 0
         do {
             var b = arch.Batch.Prompt(Array(tokens[0..<8]), sequence: 1, all: true)

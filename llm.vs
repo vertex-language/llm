@@ -16,7 +16,20 @@ import (
     "gpu"
     "gpu/neural"
     "llm/arch"
+    "llm/arcee"
+    "llm/exaone"
+    "llm/granite"
+    "llm/internlm"
     "llm/llama"
+    "llm/maincoder"
+    "llm/mistral"
+    "llm/olmo"
+    "llm/orion"
+    "llm/pangu"
+    "llm/qwen"
+    "llm/seed"
+    "llm/smollm"
+    "llm/xverse"
     "model"
     "model/fetch"
 )
@@ -52,7 +65,10 @@ public enum LoadError: Error, CustomStringConvertible {
 }
 
 /// The families built in, in the order they are asked.
-let builtin: [Family] = [llama.Family]
+let builtin: [Family] = [
+    llama.Family, qwen.Family, mistral.Family, granite.Family, olmo.Family, exaone.Family, internlm.Family,
+    smollm.Family, seed.Family, arcee.Family, pangu.Family, orion.Family, xverse.Family, maincoder.Family,
+]
 var registered: [Family] = []
 
 /// Register adds a family -- a third-party one, or one not built in --
