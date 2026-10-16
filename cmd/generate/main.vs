@@ -1,8 +1,9 @@
-// generate: a model by reference, greedily continuing a prompt.
+// generate: a model by reference -- a registry name or a local path --
+// greedily continuing a prompt.
 //
-//     vsc run generate -- hf.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0 "Once upon a time"
+//     vsc run generate -- qwen3:0.6b "Once upon a time"
 //     vsc run generate -- testdata/stories15M-q4_0.gguf "Once upon a time" --tokens 64
-//     vsc run generate -- hf.co/unsloth/Qwen3-0.6B-GGUF:Q4_K_M --inspect
+//     vsc run generate -- qwen3:0.6b --inspect
 package main
 
 import (

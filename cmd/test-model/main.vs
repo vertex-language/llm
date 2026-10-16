@@ -1,6 +1,6 @@
-// The facade: choosing a format from a Hub file list (model/fetch),
-// finding a family, loading local references, and refusing what no family
-// claims (llm).
+// The facade: references (registry names and local paths, never Hub
+// URLs), finding a family, loading local references, and refusing what no
+// family claims (llm).
 package main
 
 import (
@@ -8,8 +8,6 @@ import (
     "gpu"
     "llm"
     "model"
-    "model/fetch"
-    "remote/hub"
 )
 
 var failures = 0
@@ -19,35 +17,20 @@ func check(_ ok: bool, _ what: string) {
     if !ok { failures += 1 }
 }
 
-func files(_ paths: [string]) -> [hub.RepoFile] {
-    return paths.map { hub.RepoFile(path: $0, size: 1, sha256: "x") }
+// References that are refused before anything is fetched.
+for (ref, want) in [("hf.co/unsloth/Qwen3-0.6B-GGUF:Q4_K_M", "Hub references are not loaded directly"),
+                    ("https://huggingface.co/Qwen/Qwen3-8B", "Hub references are not loaded directly"),
+                    ("no-such-model:7b", "no model is named no-such-model"),
+                    ("kokoro", "kokoro:82m is a tts model, not text generation")] {
+    do {
+        _ = try await llm.Locate(ref)
+        check(false, "\(ref) is refused")
+    } catch {
+        check("\(error)".contains(want), "\(ref) is refused: \(error)")
+    }
 }
 
-// Choosing a format.
-let meta = files(["config.json", "model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors",
-                  "model.safetensors.index.json", "pytorch_model.bin", "onnx/model.onnx", "original/consolidated.00.pth",
-                  "tokenizer.json", "tokenizer.model", "tokenizer_config.json"])
-let c1 = try fetch.Choose(meta, ref: try hub.Ref.Parse("hf.co/meta-llama/Llama-2-7b-hf"))
-check(c1.Format == .safetensors, "a snapshot with config.json and safetensors: safetensors")
-var fetched: [string] = []
-for f in meta where c1.Include.contains(where: { hub.Match($0, f.Path) }) { fetched.append(f.Path) }
-check(fetched == ["config.json", "model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors",
-                  "model.safetensors.index.json", "tokenizer.json", "tokenizer.model", "tokenizer_config.json"],
-      "only the top-level config, weights and tokenizer are fetched: \(fetched)")
-let ggufOnly = files(["README.md", "Qwen3-0.6B-Q4_K_M.gguf", "Qwen3-0.6B-Q8_0.gguf"])
-check(try fetch.Choose(ggufOnly, ref: try hub.Ref.Parse("hf.co/unsloth/Qwen3-0.6B-GGUF")).Format == .gguf, "a repository of GGUF files: GGUF")
-check(try fetch.Choose(meta, ref: try hub.Ref.Parse("hf.co/x/y:Q4_K_M")).Format == .gguf, "a quant tag: GGUF")
-check(try fetch.Choose(meta, ref: try hub.Ref.Parse("hf.co/x/y/model.gguf")).Format == .gguf, "a .gguf file named: GGUF")
-do {
-    _ = try fetch.Choose(files(["README.md", "pytorch_model.bin", "config.json"]), ref: try hub.Ref.Parse("hf.co/x/old"))
-    check(false, "PyTorch weights alone are refused")
-} catch {
-    check("\(error)".contains("neither safetensors"), "PyTorch weights alone are refused: \(error)")
-}
-
-// References and families.
-check(fetch.IsLocal("./x") && fetch.IsLocal("/tmp") && fetch.IsLocal("testdata/tiny-llama") && !fetch.IsLocal("hf.co/a/b") && !fetch.IsLocal("a/b"),
-      "local paths and Hub references told apart")
+// Families.
 let hfCk = try model.Open(fs.Path("testdata/tiny-llama"))
 let ggCk = try model.Open(fs.Path("testdata/stories260K.gguf"))
 check(llm.FamilyOf(hfCk)?.Name == "llama" && llm.FamilyOf(ggCk)?.Name == "llama", "llama claims both names")

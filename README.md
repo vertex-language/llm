@@ -5,13 +5,13 @@
 [![families: 30 built-in](https://img.shields.io/badge/families-30%20built--in-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language/llm)
 [![license: MIT](https://img.shields.io/badge/license-MIT-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](LICENSE)
 
-Text generation in pure Vertex: language models loaded by reference from local files (`.gguf`, safetensors) or the Hugging Face Hub (`hf.co/...`), running autoregressively on Apple Silicon (Metal) and CPU.
+Text generation in pure Vertex: language models loaded by name from the model registry (`qwen3`, `llama3.2:3b`, `qwen3:8b-q8_0`) or from local files (`.gguf`, safetensors), running autoregressively on Apple Silicon (Metal) and CPU.
 
 ```swift
 import "llm"
 
-// Load from Hugging Face Hub (downloads and caches automatically)
-let m = try await llm.Load("hf.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+// Load by name from the model registry (pulled once, pinned, cached)
+let m = try await llm.Load("qwen3:0.6b")
 
 // Or load a local quantized GGUF
 // let m = try await llm.Load("./stories15M-q4_0.gguf")
@@ -67,11 +67,11 @@ The `cmd/` directory provides pre-built tools for text generation, benchmarking,
 # Generate text from a local GGUF model
 vsc run generate -- testdata/stories15M-q4_0.gguf "Once upon a time" --tokens 64
 
-# Generate text directly from Hugging Face Hub
-vsc run generate -- hf.co/HuggingFaceTB/SmolLM2-135M "The capital of France is"
+# Generate text from a model in the registry (vsc run registry -- list llm, in model/)
+vsc run generate -- smollm2:135m "The capital of France is"
 
 # Inspect model architecture and tensor configuration without loading weights into GPU
-vsc run generate -- hf.co/unsloth/Qwen3-0.6B-GGUF:Q4_K_M --inspect
+vsc run generate -- qwen3:0.6b --inspect
 
 # Benchmark prompt prefill (pp) and token generation (tg) speed
 vsc run bench
@@ -98,7 +98,7 @@ vsc run test-model       # Format resolution and architecture claim checks
 
 | Package | Purpose & Features |
 | --- | --- |
-| **`llm`** | The public facade: `Load(ref, on:)` resolves local paths or Hugging Face references (`model/fetch`), opens the checkpoint, and delegates to the claiming family. `Inspect(ref)` extracts metadata without GPU memory allocation. `Generate(model, prompt, tokens:)` drives the on-device greedy autoregressive loop. `Families()` and `Register(family)` manage the extensible family registry. |
+| **`llm`** | The public facade: `Load(ref, on:)` resolves registry names (`model/registry`) or local paths, opens the checkpoint, and delegates to the claiming family. `Inspect(ref)` extracts metadata without GPU memory allocation. `Generate(model, prompt, tokens:)` drives the on-device greedy autoregressive loop. `Families()` and `Register(family)` manage the extensible family registry. |
 | **`llm/arch`** | The contract implemented by all model families: `arch.Model` (`Decode`, `Context`, `Memory`, `Tokenizer`, `Device`), `arch.Batch` (multi-sequence batch representation with tokens, positions, sequences, and output selection masks), `arch.Output` (`.logits`, `.hidden`), `arch.Family` descriptor, `arch.DecoderModel` (standard `GreedyModel` implementation), and `arch.Standard` spec-family factory. |
 | **`llm/llama`** | High-performance implementation of the Llama family (`LlamaForCausalLM`, `llama`), supporting Llama 1/2/3, TinyLlama, SmolLM2, Mixtral, and fine-tunes. Includes `llama.WriteGGUF` for exporting checkpoints to GGUF. |
 | **`llm/qwen`** | Full family support for Qwen 1, Qwen 2, Qwen 2.5, Qwen 3, Qwen2-MoE, and Qwen3-MoE across dense and mixture of experts configurations. |
@@ -117,9 +117,9 @@ import "llm"
 #### Functions
 - `func Load(_ ref: string, on d: gpu.Device? = nil) async throws -> any Model`:
   Opens a model reference:
+  - A registry name: `"qwen3"`, `"qwen3:8b"`, `"qwen3:8b-q8_0"` ([`model/registry`](https://github.com/vertex-language/model/tree/main/registry)). Pulled into the Hugging Face cache (`~/.cache/huggingface/hub`) once, at its pinned commit.
   - Local path: `"./models/model.gguf"` or `"./models/snapshot-dir"`
-  - Hugging Face Hub: `"hf.co/org/model"`, with optional quantization tag: `"hf.co/unsloth/Qwen3-0.6B-GGUF:Q4_K_M"`.
-  Downloads required files into the local cache (`~/.cache/huggingface/hub`), inspects the architecture header, and loads the checkpoint onto `gpu.Default()` (or `d` if specified).
+  Hub references (`hf.co/...`) are refused: the registry is the front door. The checkpoint loads onto `gpu.Default()` (or `d` if specified).
 - `func Inspect(_ ref: string) async throws -> Info`:
   Reads configuration without allocating GPU buffers or downloading entire weight tensors. Returns `Info`:
   - `Architecture`: Name declared in checkpoint (e.g. `"LlamaForCausalLM"`).
